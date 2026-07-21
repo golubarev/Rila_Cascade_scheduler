@@ -1,1 +1,1 @@
-"Favorite color: red"
+Favorite color: green
