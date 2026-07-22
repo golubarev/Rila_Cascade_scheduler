@@ -12,3 +12,4 @@ This project aims to create an automation for easier preparation of the power pr
 7. RESERVOIR Rila
 8. HPP Rila
 
+Edited from the GitHub website.
