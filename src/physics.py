@@ -67,20 +67,28 @@ class Reservoir:
             return self._drop_coeff(level)
         return self._drop_coeff
 
-    def next_level_detailed(self, prev_level, net_inflow_mwh):
-        """Advance the level by one hour, reporting whether the cap was hit.
+    def step_with_spill(self, prev_level, net_inflow_mwh):
+        """Advance one hour, returning ``(level, spilled, overflow_water)``.
 
-        Returns ``(level, spilled)`` where ``spilled`` is True if the raw
-        computed level exceeded the spillway cap (so water would overflow).
+        ``overflow_water`` is the amount of water (in this reservoir's
+        MWh-equivalent units) that could NOT be stored because the reservoir
+        reached its spillway cap - i.e. the water that spills over.  It is
+        computed from the physics (we do not measure real spill), so the
+        simulator can route it downstream.
 
-        NOTE: for now this only *clamps* the level at the cap - it does not yet
-        route the overflow to the downstream reservoir.  Proper spill modelling
-        (hold the level, pass the surplus downstream with its travel delay) is a
-        separate, planned step.  The ``spilled`` flag makes those hours visible.
+        When the reservoir does not reach the cap, ``overflow_water`` is 0.
         """
-        raw = prev_level + net_inflow_mwh * self.drop_coeff(prev_level)
-        spilled = raw > self.cap
-        level = round(min(raw, self.cap), 3)
+        coeff = self.drop_coeff(prev_level)
+        raw = prev_level + net_inflow_mwh * coeff
+        if raw > self.cap:
+            # Excess LEVEL above the cap, converted back to water via the coeff.
+            overflow_water = (raw - self.cap) / coeff if coeff else 0.0
+            return self.cap, True, round(overflow_water, 4)
+        return round(raw, 3), False, 0.0
+
+    def next_level_detailed(self, prev_level, net_inflow_mwh):
+        """Advance one hour, returning ``(level, spilled)``.  See step_with_spill."""
+        level, spilled, _ = self.step_with_spill(prev_level, net_inflow_mwh)
         return level, spilled
 
     def next_level(self, prev_level, net_inflow_mwh):
@@ -90,8 +98,7 @@ class Reservoir:
         MWh-equivalent: (side inflow + arrivals from upstream) - (own generation).
         Positive fills the reservoir, negative draws it down.
         """
-        level, _ = self.next_level_detailed(prev_level, net_inflow_mwh)
-        return level
+        return self.step_with_spill(prev_level, net_inflow_mwh)[0]
 
 
 class Cascade:

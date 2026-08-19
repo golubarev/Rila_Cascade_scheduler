@@ -153,3 +153,24 @@ diverge more are those with unusual manual intervention in the historical record
 projection legitimately cannot reproduce. In production the simulator projects
 the future (no measurements) and is re-seeded from the latest measured level on
 each run, which is exactly its intended use.
+
+## Stage 3b: spill / overflow routing
+
+When a reservoir reaches its spillway cap, the simulator now holds the level at
+the cap, computes the overflow from the physics (real spill is not measured), and
+routes that water to the reservoir below as **delayed extra inflow**:
+
+- Kamenitza -> Pastra: default 3 h delay, transfer coefficient 0.10
+- Pastra -> Rila: default 1 h delay, transfer coefficient 1.12
+- Rila -> out of the cascade (tracked in `spill_out_total`)
+
+All delays and transfer coefficients live in `SpillConfig` and are tunable - none
+are measured, so they are physically-reasoned estimates to be refined later (e.g.
+made soil-moisture dependent once weather data is available). Non-spilling hours
+are completely unaffected, so the Stage 2/3 validations still hold.
+
+```python
+from src.simulator import ForwardSimulator, SpillConfig
+cfg = SpillConfig(kam_to_pastra_delay=3, kam_to_pastra_transfer=0.10)
+result = ForwardSimulator().run(start_levels, schedule, inflows=inflows, k=0.8, spill=cfg)
+```
