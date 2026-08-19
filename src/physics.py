@@ -67,20 +67,31 @@ class Reservoir:
             return self._drop_coeff(level)
         return self._drop_coeff
 
+    def next_level_detailed(self, prev_level, net_inflow_mwh):
+        """Advance the level by one hour, reporting whether the cap was hit.
+
+        Returns ``(level, spilled)`` where ``spilled`` is True if the raw
+        computed level exceeded the spillway cap (so water would overflow).
+
+        NOTE: for now this only *clamps* the level at the cap - it does not yet
+        route the overflow to the downstream reservoir.  Proper spill modelling
+        (hold the level, pass the surplus downstream with its travel delay) is a
+        separate, planned step.  The ``spilled`` flag makes those hours visible.
+        """
+        raw = prev_level + net_inflow_mwh * self.drop_coeff(prev_level)
+        spilled = raw > self.cap
+        level = round(min(raw, self.cap), 3)
+        return level, spilled
+
     def next_level(self, prev_level, net_inflow_mwh):
-        """Advance the level by one hour.
+        """Advance the level by one hour (level only).
 
         ``net_inflow_mwh`` is the net water into the reservoir this hour, in
         MWh-equivalent: (side inflow + arrivals from upstream) - (own generation).
         Positive fills the reservoir, negative draws it down.
-
-        The new level is ``prev_level + net_inflow * coeff(prev_level)``, clamped
-        to the cap and rounded to 3 decimals exactly as the spreadsheet does.
         """
-        new_level = prev_level + net_inflow_mwh * self.drop_coeff(prev_level)
-        if new_level > self.cap:
-            new_level = self.cap
-        return round(new_level, 3)
+        level, _ = self.next_level_detailed(prev_level, net_inflow_mwh)
+        return level
 
 
 class Cascade:
