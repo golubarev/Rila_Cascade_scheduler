@@ -174,3 +174,46 @@ from src.simulator import ForwardSimulator, SpillConfig
 cfg = SpillConfig(kam_to_pastra_delay=3, kam_to_pastra_transfer=0.10)
 result = ForwardSimulator().run(start_levels, schedule, inflows=inflows, k=0.8, spill=cfg)
 ```
+
+## Stage 4a: unit roster and operating envelopes
+
+`units.py` encodes the seven turbine units and four plants: each unit's
+technical min/max MW, forbidden "no-go" bands, soft warning limits, and the
+plant-level rules (Kamenitza must-run; Rila Unit 1's island-mode dependency;
+Rila's 3+3+4 = 10 MW combined cap). This is the reference the scheduler
+constrains against.
+
+Key methods: `Unit.is_feasible(mw)` and `Unit.clamp_to_feasible(mw)` (snap to the
+nearest legal output, skipping no-go bands), and `Plant.companion_online(dispatch)`
+(island-mode check). All limits are defaults; the operator's per-run overrides
+(next) take precedence.
+
+```
+python -m src.units      # prints the roster and runs feasibility spot-checks
+```
+
+## Stage 4b: the constraints layer (operator overrides)
+
+`constraints.py` holds the operator's per-run instructions, sitting on top of
+units.py. Five kinds, each over a time window:
+
+- **Unit availability** - a unit out of service (forced off).
+- **Unit power limit** - a temporary min/max (thermal cap, or the Kamenitza
+  water-supply minimum).
+- **Level limit** - a temporary hard floor/ceiling on a reservoir level.
+- **Target level** - a level to steer a reservoir toward, with a stiffness.
+- **Catchment state** - a named catchment on/off with its estimated inflow
+  contribution, so toggling it predicts (and later explains) an inflow change.
+
+Query methods (`effective_unit_bounds`, `level_bounds`, `target_at`,
+`inflow_adjustment`) are what the optimiser will read per hour. Base unit
+parameters (units.py) are also fully editable via `Unit.update(...)` for rare
+permanent changes such as a rehabilitation.
+
+```
+python -m src.constraints   # expresses the current live scenario and queries it
+```
+
+The demo encodes the real situation: Pastra Unit 2 out of service for a day,
+Pastra held near 7 m for construction, the Kamenitza supply minimum, and a
+catchment switched off.
