@@ -217,3 +217,31 @@ python -m src.constraints   # expresses the current live scenario and queries it
 The demo encodes the real situation: Pastra Unit 2 out of service for a day,
 Pastra held near 7 m for construction, the Kamenitza supply minimum, and a
 catchment switched off.
+
+## Stage 5: the optimizer (interpretable heuristic, single day)
+
+`optimizer.py` builds a single day's unit schedule the way the operators do:
+follow the price, cluster generation into the high-price hours, spend only the
+water available, and respect every constraint. It reuses units.py (envelopes),
+constraints.py (operator overrides) and simulator.py (level projection).
+
+Strategy: (1) a daily energy budget per plant from its reservoir level room plus
+inflows; (2) pour each budget into the highest-price hours; (3) split each
+plant's hourly MW across its units honouring min/max, no-go bands, the Rila
+combined cap and island-mode rule, and availability; (4) simulate, then repair -
+if any reservoir would drop below its floor (physical gauge floor or an operator
+limit) cut that plant's cheapest hours until the floor holds.
+
+```
+python -m src.optimizer     # optimises one day under the live scenario
+```
+
+The demo encodes the current situation (Pastra Unit 2 out of service, Pastra held
+near 7 m for construction) and produces a violation-free, price-following
+schedule, trading a little revenue to protect the floors.
+
+Documented v1 limitations (to refine): revenue uses gross x price (net-of-losses
+later); Kalin's daily energy is operator-set and not yet coupled to Kamenitza's
+headroom; unit splitting is greedy, not exhaustive; single day only (the monthly
+water budget and multi-day water value come later); prices are a synthetic
+two-peak placeholder until the IBEX feed is wired in.
